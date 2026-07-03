@@ -63,3 +63,17 @@ async def test_scraper_failure_flagged_but_digest_sent(conn):
         await run_daily(conn, CFG, await _collect(sent))
     assert "Nothing new today." in sent[0]
     assert "failures: yc" in sent[-1]
+    assert conn.execute("SELECT outcome FROM runs").fetchone()["outcome"] == "failed"
+
+
+async def test_processing_error_flagged_but_digest_sent(conn):
+    _activate(conn, "yc", last_count=1)
+    sent = []
+    scraped = [{"name": "Acme", "url": "https://acme.io", "description": None, "extra": None}]
+    with patch("radar.jobs.run_scraper", return_value=scraped), \
+         patch("radar.jobs.find_new", side_effect=RuntimeError("db exploded")):
+        await run_daily(conn, CFG, await _collect(sent))
+    assert sent, "digest must still be sent"
+    assert "failures: yc" in sent[-1]
+    row = conn.execute("SELECT outcome, error FROM runs").fetchone()
+    assert row["outcome"] == "failed" and "db exploded" in row["error"]

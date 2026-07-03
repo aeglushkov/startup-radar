@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import os
+from collections.abc import Awaitable, Callable
 
 from radar import db
 from radar.config import Config
@@ -12,7 +13,7 @@ from radar.runner import ScraperError, run_scraper
 log = logging.getLogger(__name__)
 
 
-async def run_daily(conn, cfg: Config, send) -> None:
+async def run_daily(conn, cfg: Config, send: Callable[[str], Awaitable[None]]) -> None:
     sources = [s for s in db.list_sources(conn) if s["status"] == "active"]
     sections, failures, total_new = [], [], 0
 
@@ -33,14 +34,20 @@ async def run_daily(conn, cfg: Config, send) -> None:
             failures.append(src["slug"])
             continue
 
-        new = find_new(conn, src["id"], scraped)
-        enriched = [
-            await asyncio.to_thread(enrich_company, c, cfg.openai_api_key, cfg.openai_model)
-            for c in new
-        ]
-        ids = db.insert_companies(conn, src["id"], enriched)
-        db.record_run(conn, src["id"], "ok", len(scraped), None)
-        db.update_source_after_run(conn, src["slug"], len(scraped))
+        try:
+            new = find_new(conn, src["id"], scraped)
+            enriched = [
+                await asyncio.to_thread(enrich_company, c, cfg.openai_api_key, cfg.openai_model)
+                for c in new
+            ]
+            ids = db.insert_companies(conn, src["id"], enriched)
+            db.record_run(conn, src["id"], "ok", len(scraped), None)
+            db.update_source_after_run(conn, src["slug"], len(scraped))
+        except Exception as e:
+            log.exception("processing %s failed", src["slug"])
+            db.record_run(conn, src["id"], "failed", len(scraped), str(e))
+            failures.append(src["slug"])
+            continue
         if enriched:
             # carry db ids so we can mark_posted only after a successful send
             sections.append(
@@ -50,7 +57,7 @@ async def run_daily(conn, cfg: Config, send) -> None:
 
     footer = (f"{len(sources)} sources checked · {total_new} new · "
               f"failures: {', '.join(failures) if failures else 'none'}")
-    for message in compose([(n, cs) for n, cs in sections], footer):
+    for message in compose(sections, footer):
         await send(message)
     posted_ids = [c["_id"] for _, cs in sections for c in cs]
     if posted_ids:
