@@ -61,3 +61,34 @@ def test_import_allowlist(tmp_path):
             return []
     """)
     assert check_imports(p) == ["requests"]
+
+
+def test_syntax_error_wrapped(tmp_path):
+    p = write(tmp_path, """
+        def scrape(:
+            return []
+    """)
+    with pytest.raises(ScraperError) as e:
+        run_scraper(p)
+    assert e.value.stage == "imports"
+
+
+def test_dynamic_import_flagged(tmp_path):
+    p = write(tmp_path, """
+        import importlib
+        def scrape():
+            mod = importlib.import_module("openai")
+            return []
+    """)
+    assert "importlib" in check_imports(p)
+
+
+def test_exec_eval_flagged(tmp_path):
+    p = write(tmp_path, """
+        def scrape():
+            exec("import openai")
+            eval("1+1")
+            __import__("aiogram")
+            return []
+    """)
+    assert check_imports(p) == ["__import__", "eval", "exec"]

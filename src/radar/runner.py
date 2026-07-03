@@ -16,21 +16,38 @@ class ScraperError(Exception):
 
 
 def check_imports(path: str) -> list[str]:
-    tree = ast.parse(open(path).read())
-    roots = set()
+    """Best-effort static lint: catches accidental disallowed deps and the obvious
+    dynamic-import escapes. NOT a security boundary — the stripped subprocess
+    environment in run_scraper is what actually protects secrets."""
+    with open(path) as f:
+        tree = ast.parse(f.read())
+    findings = set()
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
-            roots.update(a.name.split(".")[0] for a in node.names)
+            findings.update(a.name.split(".")[0] for a in node.names)
         elif isinstance(node, ast.ImportFrom) and node.module and node.level == 0:
-            roots.add(node.module.split(".")[0])
-    return sorted(
-        r for r in roots
-        if r not in sys.stdlib_module_names and r not in ALLOWED_THIRD_PARTY
-    )
+            findings.add(node.module.split(".")[0])
+        elif isinstance(node, ast.Name) and node.id in {"__import__", "exec", "eval"}:
+            findings.add(node.id)
+    findings.discard("importlib")  # handled below: never allowed even though stdlib
+    disallowed = {
+        r for r in findings
+        if r in {"__import__", "exec", "eval"}
+        or (r not in sys.stdlib_module_names and r not in ALLOWED_THIRD_PARTY)
+    }
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import) and any(a.name.split(".")[0] == "importlib" for a in node.names):
+            disallowed.add("importlib")
+        elif isinstance(node, ast.ImportFrom) and node.module and node.module.split(".")[0] == "importlib":
+            disallowed.add("importlib")
+    return sorted(disallowed)
 
 
 def run_scraper(path: str, timeout: int = SCRAPER_TIMEOUT) -> list[dict]:
-    bad = check_imports(path)
+    try:
+        bad = check_imports(path)
+    except (SyntaxError, OSError) as e:
+        raise ScraperError("imports", f"cannot parse scraper: {e}")
     if bad:
         raise ScraperError("imports", f"disallowed imports: {bad}")
     env = {"PATH": os.environ.get("PATH", ""), "HOME": "/tmp", "LANG": "C.UTF-8"}
