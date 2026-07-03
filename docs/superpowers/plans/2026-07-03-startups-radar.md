@@ -12,7 +12,7 @@
 
 ## Global Constraints
 
-- Python `>=3.12`. Repo root is `~/PycharmProjects/startups-radar`; package lives in `src/radar/`.
+- Python `>=3.11` (local dev machine has 3.11; the Docker image runs 3.12 — use no 3.12-only syntax). Repo root is `~/PycharmProjects/startups-radar`; package lives in `src/radar/`.
 - Scraper subprocesses: stripped environment (no secrets), hard timeout **120 s**, third-party imports limited to `httpx` and `bs4` (beautifulsoup4). Stdlib is allowed.
 - Baselined companies get `posted_at = 'baseline'` (sentinel string) so they are never posted.
 - Sanity guard: a run returning `< 50%` of the source's `last_count` (when `last_count > 0`) is `suspicious` — skip diffing, flag in footer.
