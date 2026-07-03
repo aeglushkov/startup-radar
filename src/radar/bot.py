@@ -106,7 +106,11 @@ def build_router(conn, cfg: Config) -> Router:
         await message.reply("Running digest now…")
         bot: Bot = message.bot
         send = make_sender(bot, cfg.channel_id)
-        await run_daily(conn, cfg, send)
-        await message.reply("Done.")
+        try:
+            await run_daily(conn, cfg, send)
+            await message.reply("Done.")
+        except Exception as e:
+            log.exception("manual digest run failed")
+            await message.reply(f"Digest run failed: {e}")
 
     return router
