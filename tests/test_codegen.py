@@ -66,3 +66,48 @@ def test_failure_retries_once_then_fails(tmp_path):
     assert "schema" in res.error
     assert calls[1] != calls[0]  # retry prompt includes error feedback
     assert db.get_source(conn, "demo")["status"] == "failed"
+
+
+EMPTY = "def scrape():\n    return []\n"
+
+
+def test_zero_companies_first_attempt_gets_retry(tmp_path):
+    cfg = make_cfg(tmp_path)
+    seed(cfg)
+    (tmp_path / "scrapers").mkdir()
+    outputs = [EMPTY, GOOD]
+
+    def fake_codex(prompt, cfg_):
+        (tmp_path / "scrapers" / "demo.py").write_text(outputs.pop(0))
+
+    with patch("radar.codegen._invoke_codex", side_effect=fake_codex), \
+         patch("radar.codegen._git_commit"):
+        res = generate_and_enable(cfg, "demo", "Demo", "https://demo.vc")
+    assert res.ok is True and res.count == 1  # retry rescued it
+    assert not outputs  # both attempts consumed
+
+
+def test_zero_companies_twice_fails_with_reason(tmp_path):
+    cfg = make_cfg(tmp_path)
+    conn = seed(cfg)
+    (tmp_path / "scrapers").mkdir()
+
+    def fake_codex(prompt, cfg_):
+        (tmp_path / "scrapers" / "demo.py").write_text(EMPTY)
+
+    with patch("radar.codegen._invoke_codex", side_effect=fake_codex), \
+         patch("radar.codegen._git_commit"):
+        res = generate_and_enable(cfg, "demo", "Demo", "https://demo.vc")
+    assert res.ok is False and "0 companies" in res.error
+    assert db.get_source(conn, "demo")["status"] == "failed"
+
+
+def test_git_failure_logged_not_raised(tmp_path, caplog):
+    import logging
+    from radar.codegen import _git_commit
+    with patch("radar.codegen.subprocess.run") as run:
+        run.return_value.returncode = 1
+        run.return_value.stderr = "boom"
+        with caplog.at_level(logging.WARNING):
+            _git_commit("scrapers/x.py", "x")
+    assert "git add failed" in caplog.text or "boom" in caplog.text

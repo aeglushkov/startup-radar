@@ -41,9 +41,13 @@ def _invoke_codex(prompt: str, cfg: Config) -> None:
 
 
 def _git_commit(path: str, slug: str) -> None:
-    subprocess.run(["git", "add", path], cwd=REPO_ROOT, check=False)
-    subprocess.run(["git", "commit", "-m", f"feat: add generated scraper for {slug}"],
-                   cwd=REPO_ROOT, check=False)
+    for cmd in (
+        ["git", "add", path],
+        ["git", "commit", "-m", f"feat: add generated scraper for {slug}"],
+    ):
+        proc = subprocess.run(cmd, cwd=REPO_ROOT, capture_output=True, text=True)
+        if proc.returncode != 0:
+            log.warning("git %s failed for %s: %s", cmd[1], slug, proc.stderr.strip())
 
 
 def _attempt(cfg: Config, slug: str, prompt: str) -> tuple[list[dict] | None, str | None]:
@@ -55,9 +59,12 @@ def _attempt(cfg: Config, slug: str, prompt: str) -> tuple[list[dict] | None, st
     if not path.exists():
         return None, f"codex did not create {path}"
     try:
-        return run_scraper(str(path)), None
+        companies = run_scraper(str(path))
     except ScraperError as e:
         return None, str(e)
+    if not companies:
+        return None, "self-test returned 0 companies"
+    return companies, None
 
 
 def generate_and_enable(cfg: Config, slug: str, name: str, url: str) -> GenResult:
@@ -73,10 +80,9 @@ def generate_and_enable(cfg: Config, slug: str, name: str, url: str) -> GenResul
         )
         companies, error = _attempt(cfg, slug, retry_prompt)
 
-    if companies is None or len(companies) == 0:
+    if companies is None:
         db.set_source_status(conn, slug, "failed")
-        return GenResult(ok=False, count=0,
-                         error=error or "self-test returned 0 companies")
+        return GenResult(ok=False, count=0, error=error)
 
     src = db.get_source(conn, slug)
     n = baseline(conn, src["id"], companies)
