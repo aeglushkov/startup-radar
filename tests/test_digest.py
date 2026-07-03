@@ -25,3 +25,24 @@ def test_splits_long_digests():
     assert len(msgs) > 1
     assert all(len(m) <= 4000 for m in msgs)
     assert "footer" in msgs[-1]
+
+
+def test_url_escaped_in_href():
+    c = dict(C, url="https://acme.io/?a=1&b=2")
+    msgs = compose([("YC", [c])], "footer")
+    assert 'href="https://acme.io/?a=1&amp;b=2"' in msgs[0]
+
+
+def test_single_long_line_never_oversizes():
+    c = dict(C, one_liner="x" * 5000)
+    msgs = compose([("YC", [c])], "footer")
+    assert all(len(m) <= 4000 for m in msgs)
+    assert all(m.strip() for m in msgs)
+    assert "…" in msgs[0]
+
+
+def test_description_fallback():
+    c = {"name": "Beta", "url": "https://beta.io", "one_liner": None,
+         "tags": [], "description": "Raw desc"}
+    msgs = compose([("YC", [c])], "footer")
+    assert "Raw desc" in msgs[0]
