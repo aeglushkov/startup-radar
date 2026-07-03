@@ -11,7 +11,7 @@ from radar.runner import ScraperError, run_scraper
 log = logging.getLogger(__name__)
 REPO_ROOT = pathlib.Path(__file__).parents[2]
 PROMPT_PATH = REPO_ROOT / "prompts" / "scraper_prompt.md"
-EXEMPLAR_PATH = REPO_ROOT / "scrapers" / "ycombinator.py"
+EXEMPLAR_PATH = REPO_ROOT / "scrapers" / "y-combinator.py"
 CODEX_TIMEOUT = 600
 
 
@@ -67,9 +67,27 @@ def _attempt(cfg: Config, slug: str, prompt: str) -> tuple[list[dict] | None, st
     return companies, None
 
 
+def _enable(conn, slug: str, companies: list[dict]) -> GenResult:
+    src = db.get_source(conn, slug)
+    n = baseline(conn, src["id"], companies)
+    db.update_source_after_run(conn, slug, n)
+    db.set_source_status(conn, slug, "active")
+    return GenResult(ok=True, count=n, error=None)
+
+
 def generate_and_enable(cfg: Config, slug: str, name: str, url: str) -> GenResult:
     conn = db.get_conn(cfg.db_path)
-    path = str(pathlib.Path(cfg.scrapers_dir) / f"{slug}.py")
+
+    path_obj = pathlib.Path(cfg.scrapers_dir) / f"{slug}.py"
+    if path_obj.exists():
+        try:
+            companies = run_scraper(str(path_obj))
+        except ScraperError:
+            companies = None  # broken existing file: fall through to regeneration
+        if companies:
+            return _enable(conn, slug, companies)
+
+    path = str(path_obj)
     prompt = render_prompt(name, url, slug, cfg.scrapers_dir)
     companies, error = _attempt(cfg, slug, prompt)
 
@@ -84,9 +102,6 @@ def generate_and_enable(cfg: Config, slug: str, name: str, url: str) -> GenResul
         db.set_source_status(conn, slug, "failed")
         return GenResult(ok=False, count=0, error=error)
 
-    src = db.get_source(conn, slug)
-    n = baseline(conn, src["id"], companies)
-    db.update_source_after_run(conn, slug, n)
-    db.set_source_status(conn, slug, "active")
+    result = _enable(conn, slug, companies)
     _git_commit(path, slug)
-    return GenResult(ok=True, count=n, error=None)
+    return result

@@ -111,3 +111,32 @@ def test_git_failure_logged_not_raised(tmp_path, caplog):
         with caplog.at_level(logging.WARNING):
             _git_commit("scrapers/x.py", "x")
     assert "git add failed" in caplog.text or "boom" in caplog.text
+
+
+def test_existing_working_scraper_used_without_codex(tmp_path):
+    cfg = make_cfg(tmp_path)
+    conn = seed(cfg)
+    (tmp_path / "scrapers").mkdir()
+    (tmp_path / "scrapers" / "demo.py").write_text(GOOD)
+    with patch("radar.codegen._invoke_codex") as codex, \
+         patch("radar.codegen._git_commit"):
+        res = generate_and_enable(cfg, "demo", "Demo", "https://demo.vc")
+    codex.assert_not_called()
+    assert res.ok is True and res.count == 1
+    assert db.get_source(conn, "demo")["status"] == "active"
+
+
+def test_existing_broken_scraper_falls_through_to_codex(tmp_path):
+    cfg = make_cfg(tmp_path)
+    seed(cfg)
+    (tmp_path / "scrapers").mkdir()
+    (tmp_path / "scrapers" / "demo.py").write_text("def scrape():\n    return 'bad'\n")
+
+    def fake_codex(prompt, cfg_):
+        (tmp_path / "scrapers" / "demo.py").write_text(GOOD)
+
+    with patch("radar.codegen._invoke_codex", side_effect=fake_codex) as codex, \
+         patch("radar.codegen._git_commit"):
+        res = generate_and_enable(cfg, "demo", "Demo", "https://demo.vc")
+    assert codex.called
+    assert res.ok is True

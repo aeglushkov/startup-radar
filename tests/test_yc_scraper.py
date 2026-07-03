@@ -8,7 +8,7 @@ FIX = pathlib.Path(__file__).parent / "fixtures"
 
 def load_scraper():
     spec = importlib.util.spec_from_file_location(
-        "yc", pathlib.Path(__file__).parents[1] / "scrapers" / "ycombinator.py")
+        "yc", pathlib.Path(__file__).parents[1] / "scrapers" / "y-combinator.py")
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     return mod
