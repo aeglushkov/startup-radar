@@ -33,7 +33,8 @@ def compose(sections: list[tuple[str, list[dict]]], footer: str) -> list[str]:
     for source_name, companies in sections:
         blocks.append(f"<b>{html_escape(source_name[:200])}</b>\n"
                       + "\n".join(_company_line(c) for c in companies))
-    blocks.append(f"<i>{html_escape(footer)}</i>")
+    safe_footer = footer[:700].replace("\n", " ")
+    blocks.append(f"<i>{html_escape(safe_footer)}</i>")
 
     messages, current = [], ""
     # every piece is bounded < MAX_LEN by construction in _company_line/compose

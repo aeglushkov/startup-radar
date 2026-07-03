@@ -52,3 +52,10 @@ def test_description_fallback():
          "tags": [], "description": "Raw desc"}
     msgs = compose([("YC", [c])], "footer")
     assert "Raw desc" in msgs[0]
+
+
+def test_pathological_footer_stays_sendable():
+    msgs = compose([("YC", [C])], ("&" * 3000) + "\nsecond line")
+    assert all(0 < len(m) <= 4000 for m in msgs)
+    for m in msgs:
+        assert m.count("<i>") == m.count("</i>")
