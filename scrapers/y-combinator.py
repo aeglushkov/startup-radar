@@ -11,10 +11,12 @@ def scrape() -> list[dict]:
     companies, page, nb_pages = [], 0, 1
     with httpx.Client(timeout=30) as client:
         while page < nb_pages:
-            data = client.post(
+            resp = client.post(
                 URL, headers=HEADERS,
                 json={"params": f"hitsPerPage=1000&page={page}"},
-            ).json()
+            )
+            resp.raise_for_status()
+            data = resp.json()
             nb_pages = data.get("nbPages", 0)
             for hit in data.get("hits", []):
                 website = (hit.get("website") or "").strip()

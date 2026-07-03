@@ -10,6 +10,7 @@ from radar import db
 from radar.codegen import generate_and_enable
 from radar.config import Config
 from radar.jobs import run_daily
+from radar.notify import make_sender
 
 log = logging.getLogger(__name__)
 
@@ -44,11 +45,15 @@ def build_router(conn, cfg: Config) -> Router:
 
     async def _generate(message: Message, slug: str, name: str, url: str) -> None:
         await message.reply(f"Generating scraper for {slug}…")
-        res = await asyncio.to_thread(generate_and_enable, cfg, slug, name, url)
-        if res.ok:
-            await message.reply(f"Tracking {name}: {res.count} companies baselined.")
-        else:
-            await message.reply(f"Scraper for {slug} failed: {res.error}\nUse /retry {slug}.")
+        try:
+            res = await asyncio.to_thread(generate_and_enable, cfg, slug, name, url)
+            if res.ok:
+                await message.reply(f"Tracking {name}: {res.count} companies baselined.")
+            else:
+                await message.reply(f"Scraper for {slug} failed: {res.error}\nUse /retry {slug}.")
+        except Exception as e:
+            log.exception("scraper generation crashed for %s", slug)
+            await message.reply(f"Scraper generation crashed: {e}")
 
     @router.message(Command("add"))
     async def add(message: Message):
@@ -100,9 +105,7 @@ def build_router(conn, cfg: Config) -> Router:
             return
         await message.reply("Running digest now…")
         bot: Bot = message.bot
-        async def send(text: str) -> None:
-            await bot.send_message(cfg.channel_id, text, parse_mode="HTML",
-                                   disable_web_page_preview=True)
+        send = make_sender(bot, cfg.channel_id)
         await run_daily(conn, cfg, send)
         await message.reply("Done.")
 

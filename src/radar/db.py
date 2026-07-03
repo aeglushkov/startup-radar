@@ -45,6 +45,7 @@ def _now() -> str:
 def get_conn(db_path: str) -> sqlite3.Connection:
     conn = sqlite3.connect(db_path, check_same_thread=False, isolation_level=None)
     conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA busy_timeout=5000")
     return conn
 
 
@@ -100,6 +101,17 @@ def known_keys(conn, source_id: int) -> tuple[set[str], set[str]]:
     ).fetchall()
     return ({r["normalised_url"] for r in rows},
             {r["name"].strip().lower() for r in rows})
+
+
+def unposted_companies(conn, source_id: int) -> list[dict]:
+    rows = conn.execute(
+        "SELECT * FROM companies WHERE source_id=? AND posted_at IS NULL", (source_id,)
+    ).fetchall()
+    return [
+        {"name": r["name"], "url": r["url"], "description": r["description"],
+         "one_liner": r["one_liner"], "tags": json.loads(r["tags"]), "_id": r["id"]}
+        for r in rows
+    ]
 
 
 def mark_posted(conn, company_ids: list[int]) -> None:

@@ -25,6 +25,14 @@ def seed(cfg, slug="demo"):
     return conn
 
 
+def test_repo_root_honours_app_root(tmp_path, monkeypatch):
+    from radar.codegen import _repo_root
+    monkeypatch.setenv("APP_ROOT", str(tmp_path))
+    assert _repo_root() == tmp_path
+    monkeypatch.delenv("APP_ROOT")
+    assert _repo_root().joinpath("pyproject.toml").exists()
+
+
 def test_render_prompt_embeds_contract_and_exemplar():
     p = render_prompt("Demo", "https://demo.vc", "demo", "scrapers")
     assert "scrapers/demo.py" in p and "https://demo.vc" in p
@@ -124,6 +132,31 @@ def test_existing_working_scraper_used_without_codex(tmp_path):
     codex.assert_not_called()
     assert res.ok is True and res.count == 1
     assert db.get_source(conn, "demo")["status"] == "active"
+
+
+def test_existing_scraper_returning_empty_does_not_trigger_codex(tmp_path):
+    cfg = make_cfg(tmp_path)
+    conn = seed(cfg)
+    (tmp_path / "scrapers").mkdir()
+    (tmp_path / "scrapers" / "demo.py").write_text(EMPTY)
+    with patch("radar.codegen._invoke_codex") as codex, \
+         patch("radar.codegen._git_commit"):
+        res = generate_and_enable(cfg, "demo", "Demo", "https://demo.vc")
+    codex.assert_not_called()
+    assert res.ok is False and "0 companies" in res.error
+    assert db.get_source(conn, "demo")["status"] == "failed"
+
+
+def test_retry_on_active_source_does_not_duplicate(tmp_path):
+    cfg = make_cfg(tmp_path)
+    conn = seed(cfg)
+    (tmp_path / "scrapers").mkdir()
+    (tmp_path / "scrapers" / "demo.py").write_text(GOOD)
+    with patch("radar.codegen._invoke_codex"), patch("radar.codegen._git_commit"):
+        generate_and_enable(cfg, "demo", "Demo", "https://demo.vc")
+        generate_and_enable(cfg, "demo", "Demo", "https://demo.vc")  # simulate /retry
+    n = conn.execute("SELECT COUNT(*) c FROM companies").fetchone()["c"]
+    assert n == 1
 
 
 def test_existing_broken_scraper_falls_through_to_codex(tmp_path):

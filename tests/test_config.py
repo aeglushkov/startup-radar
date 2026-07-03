@@ -19,6 +19,7 @@ def test_from_env_required_and_defaults(monkeypatch):
     assert cfg.openai_model == "gpt-5-mini"
     assert cfg.db_path == "/data/radar.db"
     assert cfg.timezone == "Europe/Berlin"
+    assert "sk-x" not in repr(cfg)
 
 
 def test_missing_required_raises(monkeypatch):

@@ -1,13 +1,13 @@
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 
 @dataclass(frozen=True)
 class Config:
-    bot_token: str
+    bot_token: str = field(repr=False)
     channel_id: str
     admin_ids: frozenset[int]
-    openai_api_key: str
+    openai_api_key: str = field(repr=False)
     openai_model: str
     db_path: str
     scrapers_dir: str

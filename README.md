@@ -34,16 +34,23 @@ files in `.git` touched by the container will be root-owned on the host (use
 
 /add <name> <url> · /remove <slug> · /list · /run (digest now) · /retry <slug>
 
+`/retry <slug>` is also the current interim way to re-add a source you previously
+removed with `/remove <slug>`: it re-runs generation/baselining and flips status
+back to active — there is no separate "un-remove" command yet.
+
 ## Acceptance checklist (run once after first deploy)
 
 - [ ] `/list` answers (bot alive, admin filter works — a non-admin gets silence)
 - [ ] Register YC by inserting the source row and baselining: `/add Y Combinator
       https://www.ycombinator.com/companies` — expect "Tracking … companies baselined"
-      (thousands). `/add Y Combinator https://www.ycombinator.com/companies`
-      automatically uses the pre-written `scrapers/y-combinator.py` (no code
-      generation runs when a working scraper file already exists for the slug).
+      (thousands); this automatically uses the pre-written `scrapers/y-combinator.py`
+      (no code generation runs when a working scraper file already exists for the slug).
 - [ ] `/run` → digest appears in the channel with health footer
 - [ ] Next morning 08:00 Europe/Berlin → scheduled digest arrives
+- [ ] `docker compose exec app codex --version` prints a version (codegen sanity
+      check). If codegen fails when adding a new source, check: `OPENAI_API_KEY`
+      is set in the container's env, `docker compose exec app node --version` is
+      >= 22, and `docker compose logs app` for the actual codex/subprocess error.
 - [ ] `/add` a second real source (e.g. an accelerator with a simple portfolio
       page) → generated scraper self-tests and goes active
 

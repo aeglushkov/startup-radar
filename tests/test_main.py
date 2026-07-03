@@ -14,3 +14,4 @@ def test_scheduler_has_daily_0800_job():
     assert len(jobs) == 1
     trigger = str(jobs[0].trigger)
     assert "hour='8'" in trigger and "minute='0'" in trigger
+    assert jobs[0].misfire_grace_time == 3600

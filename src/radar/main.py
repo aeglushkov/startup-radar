@@ -9,6 +9,7 @@ from radar import db
 from radar.bot import build_router
 from radar.config import Config
 from radar.jobs import run_daily
+from radar.notify import make_sender
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
@@ -16,7 +17,8 @@ log = logging.getLogger(__name__)
 
 def build_scheduler(cfg: Config, job) -> AsyncIOScheduler:
     scheduler = AsyncIOScheduler(timezone=cfg.timezone)
-    scheduler.add_job(job, CronTrigger(hour=8, minute=0, timezone=cfg.timezone))
+    scheduler.add_job(job, CronTrigger(hour=8, minute=0, timezone=cfg.timezone),
+                      misfire_grace_time=3600, coalesce=True)
     return scheduler
 
 
@@ -28,9 +30,7 @@ async def main() -> None:
     dp = Dispatcher()
     dp.include_router(build_router(conn, cfg))
 
-    async def send(text: str) -> None:
-        await bot.send_message(cfg.channel_id, text, parse_mode="HTML",
-                               disable_web_page_preview=True)
+    send = make_sender(bot, cfg.channel_id)
 
     async def daily() -> None:
         try:

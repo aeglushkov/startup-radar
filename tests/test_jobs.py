@@ -66,6 +66,20 @@ async def test_scraper_failure_flagged_but_digest_sent(conn):
     assert conn.execute("SELECT outcome FROM runs").fetchone()["outcome"] == "failed"
 
 
+async def test_orphaned_unposted_companies_recovered(conn):
+    _activate(conn, "yc", last_count=1)
+    sid_ = db.get_source(conn, "yc")["id"]
+    db.insert_companies(conn, sid_, [{"name": "Orphan", "url": "https://orphan.io",
+        "normalised_url": "orphan.io", "description": None, "one_liner": "Lost.", "tags": []}])
+    sent = []
+    scraped = [{"name": "Orphan", "url": "https://orphan.io", "description": None, "extra": None}]
+    with patch("radar.jobs.run_scraper", return_value=scraped):
+        await run_daily(conn, CFG, await _collect(sent))
+    assert any("Orphan" in m for m in sent)
+    row = conn.execute("SELECT posted_at FROM companies WHERE name='Orphan'").fetchone()
+    assert row["posted_at"] is not None
+
+
 async def test_processing_error_flagged_but_digest_sent(conn):
     _activate(conn, "yc", last_count=1)
     sent = []

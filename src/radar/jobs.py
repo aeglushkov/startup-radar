@@ -40,7 +40,7 @@ async def run_daily(conn, cfg: Config, send: Callable[[str], Awaitable[None]]) -
                 await asyncio.to_thread(enrich_company, c, cfg.openai_api_key, cfg.openai_model)
                 for c in new
             ]
-            ids = db.insert_companies(conn, src["id"], enriched)
+            db.insert_companies(conn, src["id"], enriched)
             db.record_run(conn, src["id"], "ok", len(scraped), None)
             db.update_source_after_run(conn, src["slug"], len(scraped))
         except Exception as e:
@@ -48,11 +48,11 @@ async def run_daily(conn, cfg: Config, send: Callable[[str], Awaitable[None]]) -
             db.record_run(conn, src["id"], "failed", len(scraped), str(e))
             failures.append(src["slug"])
             continue
-        if enriched:
-            # carry db ids so we can mark_posted only after a successful send
-            sections.append(
-                (src["name"], [dict(c, _id=i) for c, i in zip(enriched, ids)])
-            )
+
+        # includes both the rows just inserted and any orphans from prior failed sends
+        pending = db.unposted_companies(conn, src["id"])
+        if pending:
+            sections.append((src["name"], pending))
             total_new += len(enriched)
 
     footer = (f"{len(sources)} sources checked · {total_new} new · "
