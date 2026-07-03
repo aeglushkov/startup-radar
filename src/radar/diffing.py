@@ -4,21 +4,25 @@ from radar import db
 
 
 def normalise_url(url: str) -> str:
-    parts = urlsplit(url.strip().lower())
-    host = (parts.netloc or parts.path.split("/")[0]).removeprefix("www.")
-    path = parts.path if parts.netloc else "/".join(parts.path.split("/")[1:])
-    return (host + "/" + path.strip("/")).rstrip("/")
+    u = url.strip().lower()
+    if "://" not in u:
+        u = "//" + u
+    parts = urlsplit(u)
+    host = parts.netloc.removeprefix("www.")
+    return (host + "/" + parts.path.strip("/")).rstrip("/")
 
 
 def find_new(conn, source_id: int, scraped: list[dict]) -> list[dict]:
     known_urls, known_names = db.known_keys(conn, source_id)
-    out, seen = [], set()
+    out, seen_urls, seen_names = [], set(), set()
     for c in scraped:
         nurl = normalise_url(c["url"])
         nname = c["name"].strip().lower()
-        if nurl in known_urls or nname in known_names or nurl in seen:
+        if (nurl in known_urls or nname in known_names
+                or nurl in seen_urls or nname in seen_names):
             continue
-        seen.add(nurl)
+        seen_urls.add(nurl)
+        seen_names.add(nname)
         out.append({**c, "normalised_url": nurl})
     return out
 

@@ -38,3 +38,16 @@ def test_known_name_blocks_new_url(conn):
     baseline(conn, sid(conn), [{"name": "Acme", "url": "https://acme.io", "description": None, "extra": None}])
     moved = [{"name": "acme", "url": "https://acme.com", "description": None, "extra": None}]
     assert find_new(conn, sid(conn), moved) == []
+
+
+def test_normalise_url_schemeless():
+    assert normalise_url("acme.io:8080") == "acme.io:8080"
+    assert normalise_url("www.acme.io/x/") == "acme.io/x"
+
+
+def test_in_batch_same_name_different_urls(conn):
+    new = find_new(conn, sid(conn), [
+        {"name": "Gamma", "url": "https://gamma.io", "description": None, "extra": None},
+        {"name": "Gamma", "url": "https://gamma.ai", "description": None, "extra": None},
+    ])
+    assert len(new) == 1
