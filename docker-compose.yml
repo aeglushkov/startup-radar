@@ -1,0 +1,16 @@
+services:
+  app:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      - DB_PATH=/data/radar.db
+      - SCRAPERS_DIR=/app/scrapers
+    volumes:
+      - radar-data:/data
+      - ./scrapers:/app/scrapers
+      - ./prompts:/app/prompts
+      - ./.git:/app/.git
+
+volumes:
+  radar-data:
