@@ -2,8 +2,10 @@
 import httpx
 
 APP_ID = "45BWZJ1SGC"
-API_KEY = "REPLACE_WITH_PUBLIC_SEARCH_KEY"  # copy x-algolia-api-key from browser XHR
-URL = f"https://{APP_ID.lower()}-dsn.algolia.net/1/indexes/YCCompany_production/query"
+API_KEY = "NzllNTY5MzJiZGM2OTY2ZTQwMDEzOTNhYWZiZGRjODlhYzVkNjBmOGRjNzJiMWM4ZTU0ZDlhYTZjOTJiMjlhMWFuYWx5dGljc1RhZ3M9eWNkYyZyZXN0cmljdEluZGljZXM9WUNDb21wYW55X3Byb2R1Y3Rpb24lMkNZQ0NvbXBhbnlfQnlfTGF1bmNoX0RhdGVfcHJvZHVjdGlvbiZ0YWdGaWx0ZXJzPSU1QiUyMnljZGNfcHVibGljJTIyJTVE"  # public search-only key (from browser XHR)
+# Launch-date-sorted index: Algolia caps paginated search at 1000 hits, but newest
+# companies always appear first here, so new batches are never missed by the cap.
+URL = f"https://{APP_ID.lower()}-dsn.algolia.net/1/indexes/YCCompany_By_Launch_Date_production/query"
 HEADERS = {"x-algolia-application-id": APP_ID, "x-algolia-api-key": API_KEY}
 
 
