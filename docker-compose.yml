@@ -8,9 +8,11 @@ services:
       - SCRAPERS_DIR=/app/scrapers
     volumes:
       - radar-data:/data
+      - codex-auth:/root/.codex
       - ./scrapers:/app/scrapers
       - ./prompts:/app/prompts
       - ./.git:/app/.git
 
 volumes:
   radar-data:
+  codex-auth:
