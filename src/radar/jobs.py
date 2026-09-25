@@ -29,8 +29,9 @@ async def run_daily(conn, cfg: Config, send: Callable[[str], Awaitable[None]]) -
 
         last = src["last_count"]
         if last and last > 0 and len(scraped) < 0.5 * last:
-            db.record_run(conn, src["id"], "suspicious", len(scraped),
-                          f"count {len(scraped)} < 50% of last {last}")
+            reason = f"count {len(scraped)} < 50% of last {last}"
+            log.warning("scraper %s suspicious: %s", src["slug"], reason)
+            db.record_run(conn, src["id"], "suspicious", len(scraped), reason)
             failures.append(src["slug"])
             continue
 
