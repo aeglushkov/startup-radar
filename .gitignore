@@ -4,3 +4,8 @@ __pycache__/
 .venv/
 *.db
 .pytest_cache/
+.env.*
+!.env.example
+.superpowers/
+.idea/
+.DS_Store
