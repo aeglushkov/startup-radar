@@ -56,6 +56,13 @@ async def test_suspicious_shrink_skips_diff(conn):
     assert conn.execute("SELECT outcome FROM runs").fetchone()["outcome"] == "suspicious"
 
 
+async def test_suspicious_shrink_is_logged(conn, caplog):
+    _activate(conn, "yc", last_count=100)
+    with patch("radar.jobs.run_scraper", return_value=[]), caplog.at_level("WARNING"):
+        await run_daily(conn, CFG, await _collect([]))
+    assert "scraper yc suspicious: count 0 < 50% of last 100" in caplog.text
+
+
 async def test_scraper_failure_flagged_but_digest_sent(conn):
     _activate(conn, "yc")
     sent = []
